@@ -1,0 +1,49 @@
+# Rebar3 / Erlang build artifacts
+/_build/
+/.rebar3/
+.eunit/
+.rebar/
+_rel/
+_checkouts/
+_plt/
+erl_crash.dump
+rebar3.crashdump
+
+# App-local build output
+/ebin/
+/priv/*.so
+/priv/*.dll
+/priv/*.dylib
+*.beam
+
+# Coverage & logs
+*.coverdata
+logs/
+log/
+*.log
+
+# Private deployment values and secrets
+private/
+secrets/
+*.private.yaml
+*.private.yml
+*.local.yaml
+*.local.yml
+.env
+.env.*
+vmq.passwd
+vmq.acl
+*.htpasswd
+
+# Captured payloads / traffic
+*.bin
+*.pcap
+*.pcapng
+
+# Editors & OS junk
+.DS_Store
+*.swp
+*.swo
+*~
+.idea/
+.vscode/

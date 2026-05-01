@@ -1,0 +1,15 @@
+syntax = "proto3";
+package envsensor;
+
+message BME280 { float t = 1; float p = 2; float h = 3; }  // Bosch BME280
+message SHT4X  { float t = 1; float h = 2; }               // Sensirion SHT4X family (SHT40, SHT41, SHT43...)
+
+message Reading {
+  fixed64 mac   = 1;
+  sint32 rssi   = 2;    // dBm (negative); zigzag encoding keeps this small
+  uint32 batt   = 3;    // placeholder for battery voltage in millivolts (will be implemented later)
+  float esp32_t = 4;    // placeholder for ESP32 temperature (will be implemented later)
+
+  optional BME280 bme280 = 5;
+  optional SHT4X  sht4x  = 6;
+}

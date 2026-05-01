@@ -1,0 +1,27 @@
+syntax = "proto3";
+package envsensor.vernemq;
+
+message EnrichedReading {
+  // Metadata
+  uint64 time = 1;     // nanoseconds since Unix epoch
+  string topic = 2;
+  bytes ipv4 = 3;      // 4 bytes
+  bytes ipv6 = 4;      // 16 bytes
+  string user = 5;
+  string clientid = 6;
+  string broker = 7;
+
+  // Flattened Reading
+  fixed64 mac = 8;
+
+  sint32 rssi   = 9;   // dBm (negative); zigzag
+  uint32 batt   = 10;  // battery mV placeholder
+  float  esp32_t = 11; // ESP32 temperature placeholder
+
+  optional float bme280_t = 12;
+  optional float bme280_p = 13;
+  optional float bme280_h = 14;
+
+  optional float sht4x_t  = 15;
+  optional float sht4x_h  = 16;
+}
