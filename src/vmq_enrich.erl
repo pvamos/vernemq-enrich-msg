@@ -429,7 +429,7 @@ to_pair(List) when is_list(List) ->
 to_pair(_) ->
     {<<>>, false}.
 
-%% Textual normalization – handle ::ffff:84.0.24.7 -> 84.0.24.7
+%% Textual normalization – handle ::ffff:192.0.2.7 -> 192.0.2.7
 normalize_ip_text(Bin) ->
     case ipv4_mapped_from_binary(Bin) of
         {ok, V4Bin} -> {V4Bin, false};
