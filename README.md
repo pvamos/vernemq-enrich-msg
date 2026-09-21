@@ -2,6 +2,8 @@
 
 [https://github.com/pvamos/vernemq-enrich-msg](https://github.com/pvamos/vernemq-enrich-msg)
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.22883988.svg)](https://doi.org/10.5281/zenodo.22883988)
+
 A lightweight **VerneMQ plugin** that enriches incoming MQTT publishes and republishes them to mapped MQTT topics on the same broker.
 
 The current project is optimized for an environmental monitoring pipeline where ESP32 sensor nodes publish binary `envsensor.Reading` Protocol Buffers messages. The plugin decodes those input messages, adds broker-side metadata such as receive timestamp and client network information, flattens the sensor fields, and republishes a new binary `envsensor.vernemq.EnrichedReading` protobuf message.
@@ -336,14 +338,14 @@ The current plugin expects incoming payloads to be valid `envsensor.Reading` pro
 
 ## 📚 Citation and archival release
 
-This repository is being prepared as a versioned research-software artifact associated with the BSc thesis above.
+**v1.0.0** is archived in Zenodo as a version-specific research-software record.
 
+* **Version DOI:** [10.5281/zenodo.22883989](https://doi.org/10.5281/zenodo.22883989)
+* **All-versions DOI:** [10.5281/zenodo.22883988](https://doi.org/10.5281/zenodo.22883988)
 * `CITATION.cff` provides GitHub-compatible citation metadata.
-* `.zenodo.json` provides Zenodo-specific metadata and links this software to the thesis with `isSupplementTo`.
-* The planned first archival software release is **v1.0.0**.
-* After Zenodo mints the software DOI, add the DOI badge and DOI to this README and to `CITATION.cff` without creating a new software version solely for that metadata backlink.
+* `.zenodo.json` contains the Zenodo release metadata and links this software to the thesis with `isSupplementTo`.
 
-Until the software DOI exists, cite the thesis DOI and the repository URL.
+Use the **version DOI** when citing the exact `v1.0.0` release. The all-versions DOI resolves to the latest archived release of this software.
 
 ---
 

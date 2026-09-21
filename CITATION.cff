@@ -8,6 +8,8 @@ authors:
     affiliation: "John Wesley Theological College, Budapest"
 title: "VerneMQ environmental message enrichment plugin"
 version: "1.0.0"
+date-released: 2026-09-22
+doi: 10.5281/zenodo.22883989
 repository-code: "https://github.com/pvamos/vernemq-enrich-msg"
 license: MIT
 keywords:
