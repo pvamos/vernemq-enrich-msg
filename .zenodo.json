@@ -1,0 +1,39 @@
+{
+  "creators": [
+    {
+      "name": "Vámos, Péter",
+      "orcid": "0009-0004-8554-5014",
+      "affiliation": "John Wesley Theological College, Budapest"
+    }
+  ],
+  "title": "VerneMQ environmental message enrichment plugin",
+  "description": "Erlang plugin for VerneMQ that decodes environmental sensor Protocol Buffers messages, adds broker-side metadata, flattens sensor fields and republishes enriched Protocol Buffers messages for downstream processing.",
+  "version": "1.0.0",
+  "access_right": "open",
+  "license": "mit",
+  "upload_type": "software",
+  "language": "eng",
+  "keywords": [
+    "environmental monitoring",
+    "sensor network",
+    "VerneMQ",
+    "MQTT",
+    "Erlang",
+    "Protocol Buffers",
+    "message enrichment",
+    "IoT"
+  ],
+  "related_identifiers": [
+    {
+      "scheme": "doi",
+      "identifier": "10.5281/zenodo.22843091",
+      "relation": "isSupplementTo",
+      "resource_type": "publication-dissertation"
+    },
+    {
+      "scheme": "url",
+      "identifier": "https://github.com/pvamos/environmental-sensor-network",
+      "relation": "isPartOf"
+    }
+  ]
+}

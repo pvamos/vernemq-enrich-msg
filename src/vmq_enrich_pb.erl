@@ -226,7 +226,7 @@ ip_bytes_from_text(Bin0, Want) ->
         _:_ -> undefined
     end.
 
-%% Textual normalization – handle ::ffff:84.0.24.7 -> 84.0.24.7
+%% Textual normalization – handle ::ffff:192.0.2.7 -> 192.0.2.7
 ipv4_mapped_from_text(Bin0) ->
     LB = list_to_binary(string:lowercase(binary_to_list(Bin0))),
     case LB of

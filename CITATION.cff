@@ -1,0 +1,23 @@
+cff-version: 1.2.0
+message: "If you use this software in research, please cite the archived software release and the associated thesis."
+type: software
+authors:
+  - family-names: "Vámos"
+    given-names: "Péter"
+    orcid: "https://orcid.org/0009-0004-8554-5014"
+    affiliation: "John Wesley Theological College, Budapest"
+title: "VerneMQ environmental message enrichment plugin"
+version: "1.0.0"
+repository-code: "https://github.com/pvamos/vernemq-enrich-msg"
+license: MIT
+keywords:
+  - "environmental monitoring"
+  - "sensor network"
+  - "VerneMQ"
+  - "MQTT"
+  - "Erlang"
+  - "Protocol Buffers"
+  - "message enrichment"
+  - "IoT"
+abstract: >-
+  Erlang plugin for VerneMQ that decodes environmental sensor Protocol Buffers messages, adds broker-side metadata, flattens sensor fields and republishes enriched Protocol Buffers messages for downstream processing.

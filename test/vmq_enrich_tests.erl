@@ -1,6 +1,13 @@
 %% test/vmq_enrich_tests.erl – only used in eunit
-%% This module stubs vmq_reg:publish/4 so vmq_enrich can be tested
-%% without a running VerneMQ node, and contains EUnit tests.
+%%
+%% Lightweight smoke tests for the current protobuf-only pipeline.
+%% This module stubs vmq_reg:publish/4 so vmq_enrich can be exercised
+%% without a running VerneMQ node.
+%%
+%% The tests deliberately avoid duplicating the production protobuf decoder.
+%% A minimal valid envsensor.Reading payload containing only field 1 (mac,
+%% fixed64) is enough to verify routing, publish behavior, invalid-input
+%% handling and the output-size guardrail.
 
 -module(vmq_reg).
 
@@ -10,7 +17,7 @@
 -export([publish/4]).
 
 publish(_CAPPublish, _RegView, _ClientId, Msg = #vmq_msg{}) ->
-    %% Convert routing_key (list of binaries) back to <<"a/b">> for assertions
+    %% Convert routing_key (list of binaries) back to <<"a/b">> for assertions.
     Topic =
         case Msg#vmq_msg.routing_key of
             [] -> <<>>;
@@ -25,159 +32,149 @@ publish(_CAPPublish, _RegView, _ClientId, Msg = #vmq_msg{}) ->
 
 %% ===== helpers =====
 
-setenv(K, V) -> ok = os:putenv(K, V).
-unsetenv(K)  -> ok = os:unsetenv(K).
+setenv(K, V) ->
+    _ = os:putenv(K, V),
+    ok.
+
+unsetenv(K) ->
+    _ = os:unsetenv(K),
+    ok.
+
+reset_env() ->
+    lists:foreach(
+      fun unsetenv/1,
+      ["VMQ_ENRICH_ACCEPT",
+       "VMQ_ENRICH_TOPIC_MAP",
+       "VMQ_ENRICH_DEFAULT_TARGET",
+       "VMQ_ENRICH_QOS",
+       "VMQ_ENRICH_RETAIN",
+       "VMQ_ENRICH_MAX_OUTPUT_SIZE",
+       "VMQ_ENRICH_MAX_JSON_SIZE",
+       "VMQ_ENRICH_INCLUDE_TOPIC",
+       "VMQ_ENRICH_INCLUDE_USER",
+       "VMQ_ENRICH_INCLUDE_CLIENTID",
+       "VMQ_ENRICH_INCLUDE_BROKER"]),
+    flush_mailbox().
 
 flush_mailbox() ->
-  receive _ -> flush_mailbox()
-  after 0 -> ok end.
+    receive _ -> flush_mailbox()
+    after 0 -> ok
+    end.
 
 recv_publish(TimeoutMs) ->
-  receive
-    {published, Topic, Payload, QoS, Retain} ->
-      {Topic, Payload, QoS, Retain}
-  after TimeoutMs ->
-      none
-  end.
+    receive
+        {published, Topic, Payload, QoS, Retain} ->
+            {Topic, Payload, QoS, Retain}
+    after TimeoutMs ->
+        none
+    end.
 
-decode_json(Bin) ->
-  jsx:decode(Bin, [return_maps, {labels, binary}]).
+%% envsensor.Reading field 1 is fixed64 mac.
+%% Protobuf key = (1 << 3) | wire_type_64 = 9.
+valid_reading_payload() ->
+    Mac = 16#0011223344556677,
+    <<9, Mac:64/little-unsigned>>.
 
 %% ===== tests =====
 
 rule_mapping_publish_test() ->
-  %% sensors/+ -> enriched/sensors/{1}
-  setenv("VMQ_ENRICH_ACCEPT", "sensors/#"),
-  setenv("VMQ_ENRICH_TOPIC_MAP",
-         "[{\"in\":\"sensors/+\",\"out\":\"enriched/sensors/{1}\"}]"),
-  setenv("VMQ_ENRICH_DEFAULT_TARGET", "enriched/{topic}"),
-  setenv("VMQ_ENRICH_QOS", "1"),
-  setenv("VMQ_ENRICH_RETAIN", "false"),
-  flush_mailbox(),
+    reset_env(),
+    setenv("VMQ_ENRICH_ACCEPT", "sensors/#"),
+    setenv("VMQ_ENRICH_TOPIC_MAP",
+           "[{\"in\":\"sensors/+\",\"out\":\"enriched/sensors/{1}\"}]"),
+    setenv("VMQ_ENRICH_DEFAULT_TARGET", "enriched/{topic}"),
+    setenv("VMQ_ENRICH_QOS", "1"),
+    setenv("VMQ_ENRICH_RETAIN", "false"),
 
-  ok = vmq_enrich:handle(<<"user">>, <<"sub">>, 0,
-                         <<"sensors/dev-001">>, <<"hello">>, false, []),
+    ok = vmq_enrich:handle(<<"user">>, <<"sub">>, 0,
+                           <<"sensors/dev-001">>, valid_reading_payload(), false, []),
 
-  case recv_publish(200) of
-    {Topic, Payload, QoS, Retain} ->
-      ?assertEqual(<<"enriched/sensors/dev-001">>, Topic),
-      ?assertEqual(1, QoS),
-      ?assertEqual(false, Retain),
-      Map = decode_json(Payload),
-      ?assertEqual(<<"sensors/dev-001">>, maps:get(<<"topic">>, Map)),
-      ?assertEqual(false, maps:get(<<"b64">>, Map)),
-      ?assertEqual(<<"hello">>, maps:get(<<"payload">>, Map));
-    none ->
-      ?assert(false)
-  end.
+    case recv_publish(200) of
+        {Topic, Payload, QoS, Retain} ->
+            ?assertEqual(<<"enriched/sensors/dev-001">>, Topic),
+            ?assertEqual(1, QoS),
+            ?assertEqual(false, Retain),
+            ?assert(is_binary(Payload)),
+            ?assert(byte_size(Payload) > 0);
+        none ->
+            ?assert(false)
+    end.
 
 default_target_publish_test() ->
-  %% No rule matches, use default: enriched/{topic}
-  setenv("VMQ_ENRICH_ACCEPT", "sensors/#"),
-  setenv("VMQ_ENRICH_TOPIC_MAP", "[]"),
-  setenv("VMQ_ENRICH_DEFAULT_TARGET", "enriched/{topic}"),
-  setenv("VMQ_ENRICH_QOS", "1"),
-  setenv("VMQ_ENRICH_RETAIN", "false"),
-  flush_mailbox(),
+    reset_env(),
+    setenv("VMQ_ENRICH_ACCEPT", "sensors/#"),
+    setenv("VMQ_ENRICH_TOPIC_MAP", "[]"),
+    setenv("VMQ_ENRICH_DEFAULT_TARGET", "enriched/{topic}"),
+    setenv("VMQ_ENRICH_QOS", "1"),
+    setenv("VMQ_ENRICH_RETAIN", "false"),
 
-  ok = vmq_enrich:handle(<<"user">>, <<"sub">>, 0,
-                         <<"sensors/dev-002">>, <<"hi">>, false, []),
+    ok = vmq_enrich:handle(<<"user">>, <<"sub">>, 0,
+                           <<"sensors/dev-002">>, valid_reading_payload(), false, []),
 
-  case recv_publish(200) of
-    {Topic, Payload, _QoS, _Retain} ->
-      ?assertEqual(<<"enriched/sensors/dev-002">>, Topic),
-      Map = decode_json(Payload),
-      ?assertEqual(<<"sensors/dev-002">>, maps:get(<<"topic">>, Map)),
-      ?assertEqual(false, maps:get(<<"b64">>, Map)),
-      ?assertEqual(<<"hi">>, maps:get(<<"payload">>, Map));
-    none ->
-      ?assert(false)
-  end.
+    case recv_publish(200) of
+        {Topic, Payload, _QoS, _Retain} ->
+            ?assertEqual(<<"enriched/sensors/dev-002">>, Topic),
+            ?assert(is_binary(Payload)),
+            ?assert(byte_size(Payload) > 0);
+        none ->
+            ?assert(false)
+    end.
 
 not_accepted_no_publish_test() ->
-  %% Accept only zigbee/#; publishing on sensors/... should be ignored.
-  setenv("VMQ_ENRICH_ACCEPT", "zigbee/#"),
-  setenv("VMQ_ENRICH_TOPIC_MAP",
-         "[{\"in\":\"zigbee/+/rx\",\"out\":\"enriched/zigbee/{1}\"}]"),
-  setenv("VMQ_ENRICH_DEFAULT_TARGET", "enriched/{topic}"),
-  flush_mailbox(),
+    reset_env(),
+    setenv("VMQ_ENRICH_ACCEPT", "zigbee/#"),
+    setenv("VMQ_ENRICH_TOPIC_MAP",
+           "[{\"in\":\"zigbee/+/rx\",\"out\":\"enriched/zigbee/{1}\"}]"),
+    setenv("VMQ_ENRICH_DEFAULT_TARGET", "enriched/{topic}"),
 
-  ok = vmq_enrich:handle(<<"user">>, <<"sub">>, 0,
-                         <<"sensors/ignored">>, <<"x">>, false, []),
+    ok = vmq_enrich:handle(<<"user">>, <<"sub">>, 0,
+                           <<"sensors/ignored">>, valid_reading_payload(), false, []),
 
-  ?assertEqual(none, recv_publish(100)).
+    ?assertEqual(none, recv_publish(100)).
 
-payload_utf8_kept_test() ->
-  %% Ensure UTF-8 payloads remain strings (not base64).
-  setenv("VMQ_ENRICH_ACCEPT", "sensors/#"),
-  setenv("VMQ_ENRICH_TOPIC_MAP",
-         "[{\"in\":\"sensors/+\",\"out\":\"enriched/sensors/{1}\"}]"),
-  flush_mailbox(),
+invalid_protobuf_dropped_test() ->
+    reset_env(),
+    setenv("VMQ_ENRICH_ACCEPT", "sensors/#"),
+    setenv("VMQ_ENRICH_TOPIC_MAP",
+           "[{\"in\":\"sensors/+\",\"out\":\"enriched/sensors/{1}\"}]"),
 
-  ok = vmq_enrich:handle(<<"u">>, <<"s">>, 0,
-                         <<"sensors/dev-003">>, <<"plain-text">>, false, []),
+    %% 0x80 starts a protobuf varint but is deliberately truncated.
+    ok = vmq_enrich:handle(<<"user">>, <<"sub">>, 0,
+                           <<"sensors/dev-invalid">>, <<16#80>>, false, []),
 
-  {_, Payload, _, _} = case recv_publish(200) of none -> ?assert(false); V -> V end,
-  Map = decode_json(Payload),
-  ?assertEqual(false, maps:get(<<"b64">>, Map)),
-  ?assertEqual(<<"plain-text">>, maps:get(<<"payload">>, Map)).
+    ?assertEqual(none, recv_publish(100)).
 
-payload_binary_b64_test() ->
-  %% Non-UTF8 bytes should be base64 encoded with b64=true.
-  setenv("VMQ_ENRICH_ACCEPT", "sensors/#"),
-  setenv("VMQ_ENRICH_TOPIC_MAP",
-         "[{\"in\":\"sensors/+\",\"out\":\"enriched/sensors/{1}\"}]"),
-  flush_mailbox(),
-  Bin = <<0,255,1,2,3,4>>,
-  ok = vmq_enrich:handle(<<"u">>, <<"s">>, 0,
-                         <<"sensors/dev-004">>, Bin, false, []),
-  {_, Payload, _, _} = case recv_publish(200) of none -> ?assert(false); V -> V end,
-  Map = decode_json(Payload),
-  ?assertEqual(true, maps:get(<<"b64">>, Map)),
-  ?assertEqual(base64:encode(Bin), maps:get(<<"payload">>, Map)).
+oversize_protobuf_dropped_test() ->
+    reset_env(),
+    setenv("VMQ_ENRICH_ACCEPT", "sensors/#"),
+    setenv("VMQ_ENRICH_TOPIC_MAP",
+           "[{\"in\":\"sensors/+\",\"out\":\"enriched/{1}\"}]"),
+    setenv("VMQ_ENRICH_QOS", "0"),
+    setenv("VMQ_ENRICH_RETAIN", "false"),
+    setenv("VMQ_ENRICH_MAX_OUTPUT_SIZE", "1"),
 
-oversize_json_dropped_test() ->
-  setenv("VMQ_ENRICH_ACCEPT", "sensors/#"),
-  setenv("VMQ_ENRICH_TOPIC_MAP", "[{\"in\":\"sensors/+\",\"out\":\"enriched/{1}\"}]"),
-  setenv("VMQ_ENRICH_QOS", "0"),
-  setenv("VMQ_ENRICH_RETAIN", "false"),
-  setenv("VMQ_ENRICH_MAX_JSON_SIZE", "64"),
-  flush_mailbox(),
-  %% Make a payload that will exceed 64B once wrapped in JSON
-  Big = <<0:2048>>,
-  ok = vmq_enrich:handle(<<"u">>, <<"s">>, 0, <<"sensors/x">>, Big, false, []),
-  ?assertEqual(none, recv_publish(200)).
+    ok = vmq_enrich:handle(<<"user">>, <<"sub">>, 0,
+                           <<"sensors/dev-oversize">>, valid_reading_payload(), false, []),
 
-ipv6_flag_toggle_test() ->
-  setenv("VMQ_ENRICH_ACCEPT", "sensors/#"),
-  setenv("VMQ_ENRICH_TOPIC_MAP", "[{\"in\":\"sensors/+\",\"out\":\"enriched/{1}\"}]"),
-  setenv("VMQ_ENRICH_INCLUDE_IPV6", "false"),
-  flush_mailbox(),
-  ok = vmq_enrich:handle(<<"u">>, <<"s">>, 0, <<"sensors/dev">>, <<"ok">>, false, []),
-  {_, Payload, _, _} = case recv_publish(200) of none -> ?assert(false); V -> V end,
-  Map = decode_json(Payload),
-  ?assertError(badkey, maps:get(<<"ipv6">>, Map)).
+    ?assertEqual(none, recv_publish(100)).
 
-ipv4_mapped_v6_normalized_test() ->
-  %% basic env
-  setenv("VMQ_ENRICH_ACCEPT", "sensors/#"),
-  setenv("VMQ_ENRICH_TOPIC_MAP",
-         "[{\"in\":\"sensors/+\",\"out\":\"enriched/sensors/{1}\"}]"),
-  flush_mailbox(),
+ipv4_mapped_peer_publish_smoke_test() ->
+    reset_env(),
+    setenv("VMQ_ENRICH_ACCEPT", "sensors/#"),
+    setenv("VMQ_ENRICH_TOPIC_MAP",
+           "[{\"in\":\"sensors/+\",\"out\":\"enriched/sensors/{1}\"}]"),
 
-  %% ::ffff:84.0.24.7 as tuple
-  {ok, Mapped} = inet:parse_address("::ffff:84.0.24.7"),
+    {ok, Mapped} = inet:parse_address("::ffff:192.0.2.7"),
+    vmq_enrich_state:track_peer({Mapped, 1883}, {<<>>, <<"cid-mapped">>}),
 
-  %% track peer as VerneMQ would on auth
-  vmq_enrich_state:track_peer({Mapped, 1883}, {<<>>, <<"cid-mapped">>}),
+    ok = vmq_enrich:handle(<<"user">>, {<<>>, <<"cid-mapped">>}, 0,
+                           <<"sensors/dev-ipv4mapped">>, valid_reading_payload(), false, []),
 
-  %% trigger a publish
-  ok = vmq_enrich:handle(<<"u">>, {<<>>, <<"cid-mapped">>}, 0,
-                         <<"sensors/dev-ipv4mapped">>, <<"x">>, false, []),
-
-  {_, Payload, _, _} =
-    case recv_publish(200) of none -> ?assert(false); V -> V end,
-  Map = decode_json(Payload),
-
-  ?assertEqual(<<"84.0.24.7">>, maps:get(<<"client">>, Map)),
-  ?assertEqual(false, maps:get(<<"ipv6">>, Map)).
+    case recv_publish(200) of
+        {Topic, Payload, _QoS, _Retain} ->
+            ?assertEqual(<<"enriched/sensors/dev-ipv4mapped">>, Topic),
+            ?assert(is_binary(Payload)),
+            ?assert(byte_size(Payload) > 0);
+        none ->
+            ?assert(false)
+    end.
